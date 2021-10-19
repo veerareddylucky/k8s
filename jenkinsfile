@@ -1,0 +1,90 @@
+pipeline
+} 
+ stages
+    {
+        stage('pulling the code')
+        {
+            steps
+            {
+                git branch: 'main', credentialsId: 'git', url: 'https://github.com/veerareddylucky/k8s.git'
+            }
+            
+        }
+        stage('codebuildind')
+        {
+            steps
+            {
+                sh 'mvn clean install -DskipTests=true'
+            }    
+        }
+        stage('Archive Artifacts')
+        {
+            steps
+            {
+                archiveArtifacts artifacts: '**/*.jar', followSymlinks: false
+            }
+        }
+        stage('Docker image build')
+        {
+            steps
+            {
+                sh 'docker build -t spring-boot .'
+                sh 'docker image list'
+                sh ' docker tag spring-boot veerareddyt/springboot-k8:1.0'
+            }
+        }
+        stage('docker login')
+        {
+            steps
+            {
+                withCredentials([string(credentialsId: 'veerareddtt', variable: 'dockerpwd')]) {
+                sh "docker login -u veerareddyt -p $dockerpwd"               
+                }
+            }
+        }
+        stage('pushing image to dockerhub')
+        {
+            steps
+            {
+                sh 'docker push veerareddyt/springboot-k8:1.0'
+            }
+        }
+        stage('removing docker images')
+        {
+            steps
+            {
+                sh 'docker rmi spring-boot'
+                sh 'docker rmi veerareddyt/springboot-k8:1.0'
+            }
+        }
+        stage('clearing all k8s files')
+        {
+            steps
+            {
+              sh 'kubectl delete deploy mongo'
+              sh 'kubectl delete deploy spring-mongo-service'
+              sh 'kubectl delete svc mongodb-service'
+              sh 'kubectl delete svc spring-mongo-service'
+            }
+        }
+        stage('deploying on k8s')
+        {
+            steps
+            {
+                sh 'kubectl apply -f mongo-config.yml'
+                sh 'kubectl apply -f mongo-secret.yml'
+                sh 'kubectl apply -f mongo-deployment.yml'
+                sh 'kubectl apply -f deployment.yml'
+                }
+        }
+        stage('cheaking the services')
+        {
+            steps
+            {
+               sh 'minikube service spring-mongo-service' 
+            }
+        }
+        
+    }
+
+}
